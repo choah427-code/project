@@ -140,6 +140,22 @@ def get_place_image(place_name: str, unsplash_key: str) -> str:
 # ─────────────────────────────────────────
 @st.cache_data
 def load_data():
+    # ── 임시 디버그 (확인 후 삭제) ──────────────
+with st.expander("🔧 API 디버그 (확인용)", expanded=True):
+    try:
+        API_KEY = st.secrets["SEOUL_API_KEY"]
+        test_area = "남산공원"
+        encoded = urllib.parse.quote(test_area)
+        
+        # 방법1 시도
+        url1 = f"https://openapi.seoul.go.kr:443/{API_KEY}/json/citydata/1/1/{encoded}"
+        r1 = requests.get(url1, timeout=10)
+        st.write("**URL1 상태코드:**", r1.status_code)
+        st.json(r1.json())
+        
+    except Exception as e:
+        st.error(f"오류: {e}")
+# ─────────────────────────────────────────────
     df = pd.read_csv("data/seoul_nightspot.csv")
 
     try:
