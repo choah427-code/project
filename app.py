@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
+import urllib.parse
 import random
 import requests
 
@@ -71,84 +72,99 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────
-# API 혼잡도 함수
+# 실시간 혼잡도 API
 # ─────────────────────────────────────────
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300)  # 5분 캐시
 def get_realtime_congestion(api_key: str) -> dict:
-
     AREA_NAMES = [
-        "강남 MICE 관광특구","동대문 관광특구","명동 관광특구","이태원 관광특구",
-        "잠실 관광특구","종로·청계 관광특구","홍대 관광특구","경복궁·서촌마을",
-        "광화문·덕수궁","창덕궁·종묘","가산디지털단지역","강남역","건대입구역",
-        "고속터미널역","교대역","구로디지털단지역","서울역","신촌·이대역",
-        "여의도","영등포 타임스퀘어","왕십리역","용산역","혜화역",
-        "DMC(디지털미디어시티)","북촌한옥마을","인사동·익선동","낙산공원·이화마을",
-        "남산공원","서울숲공원","월드컵공원","올림픽공원","뚝섬한강공원",
-        "반포한강공원","여의도한강공원","이촌한강공원","한강(잠실)"
+        "강남 MICE 관광특구", "동대문 관광특구", "명동 관광특구", "이태원 관광특구",
+        "잠실 관광특구", "종로·청계 관광특구", "홍대 관광특구", "경복궁·서촌마을",
+        "광화문·덕수궁", "창덕궁·종묘", "가산디지털단지역", "강남역", "건대입구역",
+        "고속터미널역", "교대역", "구로디지털단지역", "서울역", "신촌·이대역",
+        "여의도", "영등포 타임스퀘어", "왕십리역", "용산역", "혜화역",
+        "DMC(디지털미디어시티)", "북촌한옥마을", "인사동·익선동", "낙산공원·이화마을",
+        "남산공원", "서울숲공원", "월드컵공원", "올림픽공원", "뚝섬한강공원",
+        "반포한강공원", "여의도한강공원", "이촌한강공원", "한강(잠실)",
     ]
 
-    congestion_dict = {}
+    level_map = {
+        "여유": "여유",
+        "보통": "보통",
+        "약간 붐빔": "붐빔",
+        "붐빔": "붐빔",
+    }
 
+    congestion_dict = {}
     for area in AREA_NAMES:
         try:
-            url = f"http://openapi.seoul.go.kr:8088/{api_key}/json/citydata_ppltn/1/1/{area}"
+            encoded_area = urllib.parse.quote(area)
+            url = f"http://openapi.seoul.go.kr:8088/{api_key}/json/citydata_ppltn/1/1/{encoded_area}"
             response = requests.get(url, timeout=5)
-
-            # 요청 실패 확인
-            if response.status_code != 200:
-                print("API 요청 실패:", area)
-                congestion_dict[area] = "보통"
-                continue
-
             data = response.json()
 
-            # 응답 구조 확인
-            if "SeoulRtd.citydata_ppltn" not in data:
-                print("API 데이터 오류:", area)
+            # ✅ 핵심 수정: 올바른 키 경로 — "CITYDATA" 사용
+            citydata = data.get("SeoulRtd.citydata_ppltn", {}).get("CITYDATA", [])
+            if not citydata:
                 congestion_dict[area] = "보통"
                 continue
 
-            row = data.get("SeoulRtd.citydata_ppltn", {}).get("row", [{}])[0]
-            level = row.get("AREA_CONGEST_LVL", "")
-
-            level_map = {
-                "여유": "여유",
-                "보통": "보통",
-                "약간 붐빔": "붐빔",
-                "붐빔": "붐빔"
-            }
-
+            level = citydata[0].get("AREA_CONGEST_LVL", "").strip()
             congestion_dict[area] = level_map.get(level, "보통")
 
-        except Exception as e:
-            print("API 오류:", area, e)
+        except Exception:
             congestion_dict[area] = "보통"
 
     return congestion_dict
 
 # ─────────────────────────────────────────
-# 데이터 로드  ← 버그 3개 수정
+# Unsplash 이미지
 # ─────────────────────────────────────────
-@st.cache_data                          # ✅ 수정1: 데코레이터 추가
+@st.cache_data(ttl=3600)  # 1시간 캐시
+def get_place_image(place_name: str, unsplash_key: str) -> str:
+    try:
+        query = urllib.parse.quote(place_name + " 서울 야경")
+        url = f"https://api.unsplash.com/search/photos?query={query}&per_page=1&orientation=landscape"
+        headers = {"Authorization": f"Client-ID {unsplash_key}"}
+        response = requests.get(url, headers=headers, timeout=5)
+        data = response.json()
+        results = data.get("results", [])
+        if results:
+            return results[0]["urls"]["small"]
+    except Exception:
+        pass
+    return ""
+
+# ─────────────────────────────────────────
+# 데이터 로드
+# ─────────────────────────────────────────
+@st.cache_data
 def load_data():
-    df = pd.read_csv("data/seoul_nightspot.csv")  # ✅ 수정2: CSV 읽기 추가
+    df = pd.read_csv("data/seoul_nightspot.csv")
 
-    API_KEY = st.secrets["SEOUL_API_KEY"]
-    congestion_dict = get_realtime_congestion(API_KEY)
+    try:
+        API_KEY = st.secrets["SEOUL_API_KEY"]
+        congestion_dict = get_realtime_congestion(API_KEY)
 
-    def match_congestion(place_name, congestion_dict):
-        for api_name in congestion_dict:
-            if any(k in place_name for k in api_name.split("·")) or \
-               any(k in api_name for k in place_name.split()):
-                return congestion_dict[api_name]
-        return "보통"
+        def match_congestion(place_name):
+            for api_name, level in congestion_dict.items():
+                # 장소명 양방향 포함 매칭
+                if any(k in place_name for k in api_name.split("·")) or \
+                   any(k in api_name for k in place_name.split()):
+                    return level
+            return "보통"
 
-    df["혼잡도"] = df["장소명"].apply(lambda x: match_congestion(x, congestion_dict).strip())
+        df["혼잡도"] = df["장소명"].apply(match_congestion)
+
+    except Exception:
+        # API 키 없거나 오류 시 시뮬레이션으로 대체
+        random.seed(42)
+        df["혼잡도"] = [random.choice(["여유", "여유", "보통", "붐빔"]) for _ in range(len(df))]
+
     df["혼잡도_점수"] = df["혼잡도"].map({"여유": 1, "보통": 2, "붐빔": 3})
     df["주차가능"] = df["주차안내"].notna() & (df["주차안내"].str.strip() != "")
     return df
 
-df = load_data()  # ✅ 수정3: 사이드바보다 위에서 호출
+df = load_data()
 
 # ─────────────────────────────────────────
 # 헤더
@@ -198,8 +214,8 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown(f'<div class="metric-card"><div class="metric-num">{len(filtered)}</div><div class="metric-label">검색된 명소</div></div>', unsafe_allow_html=True)
 with c2:
-    n_free = len(filtered[filtered["혼잡도"] == "여유"])
-    st.markdown(f'<div class="metric-card"><div class="metric-num" style="color:#4ade80">{n_free}</div><div class="metric-label">🟢 지금 여유로운 곳</div></div>', unsafe_allow_html=True)
+    n_ease = len(filtered[filtered["혼잡도"] == "여유"])
+    st.markdown(f'<div class="metric-card"><div class="metric-num" style="color:#4ade80">{n_ease}</div><div class="metric-label">🟢 지금 여유로운 곳</div></div>', unsafe_allow_html=True)
 with c3:
     n_free_fee = len(filtered[filtered["유무료구분"] == "무료"])
     st.markdown(f'<div class="metric-card"><div class="metric-num" style="color:#60a5fa">{n_free_fee}</div><div class="metric-label">💙 무료 입장</div></div>', unsafe_allow_html=True)
@@ -217,26 +233,51 @@ col_map, col_list = st.columns([3, 2])
 with col_map:
     st.markdown("#### 🗺️ 야경 명소 지도")
     color_map = {"여유": "green", "보통": "orange", "붐빔": "red"}
-    icon_map = {"여유": "star", "보통": "info-sign", "붐빔": "warning-sign"}
+    icon_map  = {"여유": "star", "보통": "info-sign", "붐빔": "warning-sign"}
+
     m = folium.Map(location=[37.55, 126.99], zoom_start=12, tiles="CartoDB dark_matter")
+
+    # Unsplash 키 로드 (없으면 이미지 생략)
+    try:
+        UNSPLASH_KEY = st.secrets["UNSPLASH_ACCESS_KEY"]
+    except Exception:
+        UNSPLASH_KEY = ""
+
     for _, row in filtered.iterrows():
         try:
             lat, lon = float(row["위도"]), float(row["경도"])
-        except:
+        except Exception:
             continue
+
+        # 이미지 태그 생성
+        if UNSPLASH_KEY:
+            img_url = get_place_image(row["장소명"], UNSPLASH_KEY)
+            img_tag = f"<img src='{img_url}' style='width:100%;border-radius:6px;margin-bottom:6px'>" if img_url else ""
+        else:
+            img_tag = ""
+
+        congestion_color = "green" if row["혼잡도"] == "여유" else "orange" if row["혼잡도"] == "보통" else "red"
+
         popup_html = f"""
-        <div style='font-family:sans-serif;min-width:160px'>
+        <div style='font-family:sans-serif;min-width:180px;max-width:220px'>
+          {img_tag}
           <b style='font-size:14px'>{row['장소명']}</b><br>
-          <span style='color:{"green" if row["혼잡도"]=="여유" else "orange" if row["혼잡도"]=="보통" else "red"}'>● {row['혼잡도']}</span><br>
+          <span style='color:{congestion_color}'>● {row['혼잡도']}</span><br>
           <small>{row['분류']} · {row['유무료구분']}</small><br>
           <small style='color:#666'>{str(row['운영시간'])[:40] if pd.notna(row['운영시간']) else ''}</small>
         </div>"""
+
         folium.Marker(
             location=[lat, lon],
-            popup=folium.Popup(popup_html, max_width=220),
+            popup=folium.Popup(popup_html, max_width=240),
             tooltip=row["장소명"],
-            icon=folium.Icon(color=color_map[row["혼잡도"]], icon=icon_map[row["혼잡도"]], prefix="glyphicon"),
+            icon=folium.Icon(
+                color=color_map[row["혼잡도"]],
+                icon=icon_map[row["혼잡도"]],
+                prefix="glyphicon"
+            ),
         ).add_to(m)
+
     st_folium(m, width="100%", height=500, returned_objects=[])
     st.markdown("<div style='display:flex;gap:20px;margin-top:8px;font-size:0.85rem'><span>🟢 여유</span><span>🟡 보통</span><span>🔴 붐빔</span></div>", unsafe_allow_html=True)
 
@@ -249,28 +290,30 @@ with col_list:
             badge_class = f"badge-{row['혼잡도'].strip()}"
             fee_class = "free" if row["유무료구분"] == "무료" else "paid"
             parking_tag = '<span class="spot-tag">🅿️ 주차</span>' if row["주차가능"] else ""
-            html = f"""
+            st.markdown(f"""
 <div class="spot-card">
-<div class="spot-title">{row['장소명']}</div>
-<div style="margin:6px 0">
-<span class="spot-tag">{row['분류']}</span>
-<span class="spot-tag {fee_class}">{row['유무료구분']}</span>
-{parking_tag}
-<span class="{badge_class}">● {row['혼잡도']}</span>
-</div>
-<div style="font-size:0.8rem;color:#94a3b8">
-{str(row['운영시간'])[:50] if pd.notna(row['운영시간']) else '운영시간 정보 없음'}
-</div>
-</div>
-"""
-            st.markdown(html, unsafe_allow_html=True)
+  <div class="spot-title">{row['장소명']}</div>
+  <div style="margin:6px 0">
+    <span class="spot-tag">{row['분류']}</span>
+    <span class="spot-tag {fee_class}">{row['유무료구분']}</span>
+    {parking_tag}
+    <span class="{badge_class}">● {row['혼잡도']}</span>
+  </div>
+  <div style="font-size:0.8rem;color:#94a3b8">
+    {str(row['운영시간'])[:50] if pd.notna(row['운영시간']) else '운영시간 정보 없음'}
+  </div>
+</div>""", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────
 # 상세 정보
 # ─────────────────────────────────────────
 st.markdown("---")
 st.markdown("#### 🔎 장소 상세 정보")
-selected_name = st.selectbox("장소 선택", options=filtered["장소명"].tolist() if not filtered.empty else df["장소명"].tolist(), label_visibility="collapsed")
+selected_name = st.selectbox(
+    "장소 선택",
+    options=filtered["장소명"].tolist() if not filtered.empty else df["장소명"].tolist(),
+    label_visibility="collapsed"
+)
 selected = df[df["장소명"] == selected_name].iloc[0]
 with st.expander(f"📍 {selected_name} 상세보기", expanded=True):
     d1, d2 = st.columns(2)
