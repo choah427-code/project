@@ -88,7 +88,7 @@ def get_realtime_congestion(api_key: str) -> dict:
     for area in AREA_NAMES:
         try:
             encoded_area = urllib.parse.quote(area)
-            url = f"https://openapi.seoul.go.kr:443/{api_key}/json/citydata/1/1/{encoded_area}"
+            url = f"http://openapi.seoul.go.kr:8088/{api_key}/json/citydata/1/1/{encoded_area}"
             response = requests.get(url, timeout=10)
             data = response.json()
             city = data.get("SeoulRtd.citydata", {})
@@ -158,7 +158,7 @@ with st.expander("🔧 API 디버그 (확인 후 삭제 예정)", expanded=True)
 
         test_area = "남산공원"
         encoded = urllib.parse.quote(test_area)
-        url = f"https://openapi.seoul.go.kr:443/{API_KEY}/json/citydata/1/1/{encoded}"
+        url = f"http://openapi.seoul.go.kr:8088/{API_KEY}/json/citydata/1/1/{encoded}"
         st.write("📡 요청 URL:", url.replace(API_KEY, "****"))
 
         r = requests.get(url, timeout=10)
