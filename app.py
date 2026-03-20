@@ -3,6 +3,7 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 import random
+import requests
 
 # ─────────────────────────────────────────
 # 페이지 기본 설정
@@ -85,17 +86,60 @@ st.markdown("""
 # ─────────────────────────────────────────
 # 데이터 로드
 # ─────────────────────────────────────────
-@st.cache_data
+@st.cache_data(ttl=300)
+def get_realtime_congestion(api_key: str) -> dict:
+    """서울시 실시간 인구 API에서 혼잡도 가져오기"""
+    # API가 제공하는 116개 장소명 목록
+    AREA_NAMES = [
+        "강남 MICE 관광특구", "동대문 관광특구", "명동 관광특구", "이태원 관광특구",
+        "잠실 관광특구", "종로·청계 관광특구", "홍대 관광특구", "경복궁·서촌마을",
+        "광화문·덕수궁", "창덕궁·종묘", "가산디지털단지역", "강남역", "건대입구역",
+        "고속터미널역", "교대역", "구로디지털단지역", "서울역", "신촌·이대역",
+        "여의도", "영등포 타임스퀘어", "왕십리역", "용산역", "혜화역",
+        "DMC(디지털미디어시티)", "북촌한옥마을", "인사동·익선동", "낙산공원·이화마을",
+        "남산공원", "서울숲공원", "월드컵공원", "올림픽공원", "뚝섬한강공원",
+        "반포한강공원", "여의도한강공원", "이촌한강공원", "한강(잠실)",
+        # 필요시 추가 가능 (전체 목록: API 문서 참고)
+    ]
+    
+    congestion_dict = {}
+    
+    for area in AREA_NAMES:
+        try:
+            url = f"http://openapi.seoul.go.kr:8088/{api_key}/json/citydata_ppltn/1/1/{area}"
+            response = requests.get(url, timeout=5)
+            data = response.json()
+            
+            ppltn_data = data.get("SeoulRtd.citydata_ppltn", {}).get("CITYDATA", [{}])[0]
+            level = ppltn_data.get("AREA_CONGEST_LVL", "")
+            
+            # API 혼잡도 값 → 앱 표시값 매핑
+            level_map = {
+                "여유": "여유",
+                "보통": "보통",
+                "약간 붐빔": "보통",
+                "붐빔": "붐빔",
+            }
+            congestion_dict[area] = level_map.get(level, "보통")
+        except:
+            congestion_dict[area] = "보통"  # 실패 시 기본값
+    
+    return congestion_dict
 def load_data():
-    df = pd.read_csv("data/seoul_nightspot.csv")
-    # 시뮬레이션: 혼잡도 랜덤 배정 (실제 서비스에서는 API로 대체)
-    random.seed(42)
-    df["혼잡도"] = [random.choice(["여유", "여유", "보통", "붐빔"]) for _ in range(len(df))]
+API_KEY = st.secrets["SEOUL_API_KEY"]
+    congestion_dict = get_realtime_congestion(API_KEY)
+
+    def match_congestion(place_name, congestion_dict):
+        for api_name in congestion_dict:
+            if any(k in place_name for k in api_name.split("·")) or \
+               any(k in api_name for k in place_name.split()):
+                return congestion_dict[api_name]
+        return "보통"
+
+    df["혼잡도"] = df["장소명"].apply(lambda x: match_congestion(x, congestion_dict))
     df["혼잡도_점수"] = df["혼잡도"].map({"여유": 1, "보통": 2, "붐빔": 3})
     df["주차가능"] = df["주차안내"].notna() & (df["주차안내"].str.strip() != "")
     return df
-
-df = load_data()
 
 # ─────────────────────────────────────────
 # 헤더
