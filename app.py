@@ -91,13 +91,13 @@ def get_realtime_congestion(api_key: str) -> dict:
             url = f"http://openapi.seoul.go.kr:8088/{api_key}/json/citydata/1/1/{encoded_area}"
             response = requests.get(url, timeout=10)
             data = response.json()
-            city = data.get("SeoulRtd.citydata", {})
-            ppltn_list = city.get("CITYDATA", {}).get("LIVE_PPLTN_STTS", [])
-            if not ppltn_list:
-                congestion_dict[area] = "보통"
-                continue
-            level = ppltn_list[0].get("AREA_CONGEST_LVL", "").strip()
-            congestion_dict[area] = level_map.get(level, "보통")
+ppltn_list = data.get("CITYDATA", {}).get("LIVE_PPLTN_STTS", [])
+if not ppltn_list:
+    congestion_dict[area] = "보통"
+    continue
+
+level = ppltn_list[0].get("AREA_CONGEST_LVL", "").strip()
+congestion_dict[area] = level_map.get(level, "보통")
         except Exception:
             congestion_dict[area] = "보통"
     return congestion_dict
