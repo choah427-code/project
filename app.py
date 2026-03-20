@@ -74,7 +74,7 @@ st.markdown("""
 # ─────────────────────────────────────────
 # 실시간 혼잡도 API
 # ─────────────────────────────────────────
-@st.cache_data(ttl=300)  # 5분 캐시
+@st.cache_data(ttl=300)
 def get_realtime_congestion(api_key: str) -> dict:
     AREA_NAMES = [
         "강남 MICE 관광특구", "동대문 관광특구", "명동 관광특구", "이태원 관광특구",
@@ -86,29 +86,30 @@ def get_realtime_congestion(api_key: str) -> dict:
         "남산공원", "서울숲공원", "월드컵공원", "올림픽공원", "뚝섬한강공원",
         "반포한강공원", "여의도한강공원", "이촌한강공원", "한강(잠실)",
     ]
-
     level_map = {
-        "여유": "여유",
-        "보통": "보통",
-        "약간 붐빔": "붐빔",
-        "붐빔": "붐빔",
+        "여유": "여유", "보통": "보통",
+        "약간 붐빔": "붐빔", "붐빔": "붐빔",
     }
-
     congestion_dict = {}
     for area in AREA_NAMES:
         try:
             encoded_area = urllib.parse.quote(area)
-            url = f"http://openapi.seoul.go.kr:8088/{api_key}/json/citydata_ppltn/1/1/{encoded_area}"
-            response = requests.get(url, timeout=5)
+
+            # ✅ 수정1: https로 변경 (Streamlit Cloud http 차단 대응)
+            # ✅ 수정2: citydata_ppltn → citydata 로 서비스명 변경
+            url = f"https://openapi.seoul.go.kr:443/{api_key}/json/citydata/1/1/{encoded_area}"
+            response = requests.get(url, timeout=10)
             data = response.json()
 
-            # ✅ 핵심 수정: 올바른 키 경로 — "CITYDATA" 사용
-            citydata = data.get("SeoulRtd.citydata_ppltn", {}).get("CITYDATA", [])
-            if not citydata:
+            # ✅ 수정3: 응답 키 경로 — citydata 기준으로 수정
+            city = data.get("SeoulRtd.citydata", {})
+            ppltn_list = city.get("CITYDATA", {}).get("LIVE_PPLTN_STTS", [])
+
+            if not ppltn_list:
                 congestion_dict[area] = "보통"
                 continue
 
-            level = citydata[0].get("AREA_CONGEST_LVL", "").strip()
+            level = ppltn_list[0].get("AREA_CONGEST_LVL", "").strip()
             congestion_dict[area] = level_map.get(level, "보통")
 
         except Exception:
