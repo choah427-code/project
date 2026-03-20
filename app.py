@@ -89,40 +89,24 @@ def get_realtime_congestion(api_key: str) -> dict:
 
     congestion_dict = {}
 
-   for area in AREA_NAMES:
-    try:
-        url = f"http://openapi.seoul.go.kr:8088/{api_key}/json/citydata_ppltn/1/1/{area}"
-        response = requests.get(url, timeout=5)
+    for area in AREA_NAMES:
+        try:
+            url = f"http://openapi.seoul.go.kr:8088/{api_key}/json/citydata_ppltn/1/1/{area}"
+            response = requests.get(url, timeout=5)
 
-        # API 요청 실패 확인
-        if response.status_code != 200:
-            print("API 요청 실패:", area)
-            congestion_dict[area] = "보통"
-            continue
+            # 요청 실패 확인
+            if response.status_code != 200:
+                print("API 요청 실패:", area)
+                congestion_dict[area] = "보통"
+                continue
 
-        data = response.json()
+            data = response.json()
 
-        # API 응답 구조 확인
-        if "SeoulRtd.citydata_ppltn" not in data:
-            print("API 데이터 오류:", area)
-            congestion_dict[area] = "보통"
-            continue
-
-        row = data.get("SeoulRtd.citydata_ppltn", {}).get("row", [{}])[0]
-        level = row.get("AREA_CONGEST_LVL", "")
-
-        level_map = {
-            "여유": "여유",
-            "보통": "보통",
-            "약간 붐빔": "붐빔",
-            "붐빔": "붐빔"
-        }
-
-        congestion_dict[area] = level_map.get(level, "보통")
-
-    except Exception as e:
-        print("API 예외 발생:", area, e)
-        congestion_dict[area] = "보통"
+            # 응답 구조 확인
+            if "SeoulRtd.citydata_ppltn" not in data:
+                print("API 데이터 오류:", area)
+                congestion_dict[area] = "보통"
+                continue
 
             row = data.get("SeoulRtd.citydata_ppltn", {}).get("row", [{}])[0]
             level = row.get("AREA_CONGEST_LVL", "")
@@ -137,6 +121,7 @@ def get_realtime_congestion(api_key: str) -> dict:
             congestion_dict[area] = level_map.get(level, "보통")
 
         except Exception as e:
+            print("API 오류:", area, e)
             congestion_dict[area] = "보통"
 
     return congestion_dict
