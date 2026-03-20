@@ -218,13 +218,13 @@ with col_list:
     if filtered.empty:
         st.info("조건에 맞는 명소가 없습니다. 필터를 조정해보세요.")
     else:
-for _, row in filtered.head(20).iterrows():
+        for _, row in filtered.head(20).iterrows():
 
-    badge_class = f"badge-{row['혼잡도'].strip()}"
-    fee_class = "free" if row["유무료구분"] == "무료" else "paid"
-    parking_tag = '<span class="spot-tag">🅿️ 주차</span>' if row["주차가능"] else ""
+            badge_class = f"badge-{row['혼잡도'].strip()}"
+            fee_class = "free" if row["유무료구분"] == "무료" else "paid"
+            parking_tag = '<span class="spot-tag">🅿️ 주차</span>' if row["주차가능"] else ""
 
-    html = f"""
+            html = f"""
 <div class="spot-card">
 <div class="spot-title">{row['장소명']}</div>
 
@@ -241,8 +241,7 @@ for _, row in filtered.head(20).iterrows():
 
 </div>
 """
-
-    st.markdown(html, unsafe_allow_html=True)
+            st.markdown(html, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────
 # 상세 정보
