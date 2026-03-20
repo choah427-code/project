@@ -218,23 +218,31 @@ with col_list:
     if filtered.empty:
         st.info("조건에 맞는 명소가 없습니다. 필터를 조정해보세요.")
     else:
-        for _, row in filtered.head(20).iterrows():
-            badge_class = f"badge-{row['혼잡도']}"
-            fee_class = "free" if row["유무료구분"] == "무료" else "paid"
-            parking_tag = '<span class="spot-tag">🅿️ 주차</span>' if row["주차가능"] else ""
-            st.markdown(f"""
-            <div class="spot-card">
-              <div class="spot-title">{row['장소명']}</div>
-              <div style='margin:6px 0'>
-                <span class="spot-tag">{row['분류']}</span>
-                <span class="spot-tag {fee_class}">{row['유무료구분']}</span>
-                {parking_tag}
-                <span class="{badge_class}">● {row['혼잡도']}</span>
-              </div>
-              <div style='font-size:0.8rem;color:#94a3b8'>
-                {str(row['운영시간'])[:50] if pd.notna(row['운영시간']) else '운영시간 정보 없음'}
-              </div>
-            </div>""", unsafe_allow_html=True)
+for _, row in filtered.head(20).iterrows():
+
+    badge_class = f"badge-{row['혼잡도'].strip()}"
+    fee_class = "free" if row["유무료구분"] == "무료" else "paid"
+    parking_tag = '<span class="spot-tag">🅿️ 주차</span>' if row["주차가능"] else ""
+
+    html = f"""
+<div class="spot-card">
+<div class="spot-title">{row['장소명']}</div>
+
+<div style="margin:6px 0">
+<span class="spot-tag">{row['분류']}</span>
+<span class="spot-tag {fee_class}">{row['유무료구분']}</span>
+{parking_tag}
+<span class="{badge_class}">● {row['혼잡도']}</span>
+</div>
+
+<div style="font-size:0.8rem;color:#94a3b8">
+{str(row['운영시간'])[:50] if pd.notna(row['운영시간']) else '운영시간 정보 없음'}
+</div>
+
+</div>
+"""
+
+    st.markdown(html, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────
 # 상세 정보
