@@ -140,46 +140,38 @@ def get_place_image(place_name: str, unsplash_key: str) -> str:
 # ─────────────────────────────────────────
 @st.cache_data
 def load_data():
-    # ── 임시 디버그 (확인 후 삭제) ──────────────
+    df = pd.read_csv("data/seoul_nightspot.csv")
+    try:
+        API_KEY = st.secrets["SEOUL_API_KEY"]
+        congestion_dict = get_realtime_congestion(API_KEY)
+        def match_congestion(place_name):
+            for api_name, level in congestion_dict.items():
+                if any(k in place_name for k in api_name.split("·")) or \
+                   any(k in api_name for k in place_name.split()):
+                    return level
+            return "보통"
+        df["혼잡도"] = df["장소명"].apply(match_congestion)
+    except Exception:
+        random.seed(42)
+        df["혼잡도"] = [random.choice(["여유", "여유", "보통", "붐빔"]) for _ in range(len(df))]
+    df["혼잡도_점수"] = df["혼잡도"].map({"여유": 1, "보통": 2, "붐빔": 3})
+    df["주차가능"] = df["주차안내"].notna() & (df["주차안내"].str.strip() != "")
+    return df
+
+df = load_data()  # ← 함수 호출
+
+# ✅ 디버그는 여기 — 함수 밖, df = load_data() 아래
 with st.expander("🔧 API 디버그 (확인용)", expanded=True):
     try:
         API_KEY = st.secrets["SEOUL_API_KEY"]
         test_area = "남산공원"
         encoded = urllib.parse.quote(test_area)
-        
-        # 방법1 시도
         url1 = f"https://openapi.seoul.go.kr:443/{API_KEY}/json/citydata/1/1/{encoded}"
         r1 = requests.get(url1, timeout=10)
         st.write("**URL1 상태코드:**", r1.status_code)
         st.json(r1.json())
-        
     except Exception as e:
         st.error(f"오류: {e}")
-# ─────────────────────────────────────────────
-    df = pd.read_csv("data/seoul_nightspot.csv")
-
-    try:
-        API_KEY = st.secrets["SEOUL_API_KEY"]
-        congestion_dict = get_realtime_congestion(API_KEY)
-
-        def match_congestion(place_name):
-            for api_name, level in congestion_dict.items():
-                # 장소명 양방향 포함 매칭
-                if any(k in place_name for k in api_name.split("·")) or \
-                   any(k in api_name for k in place_name.split()):
-                    return level
-            return "보통"
-
-        df["혼잡도"] = df["장소명"].apply(match_congestion)
-
-    except Exception:
-        # API 키 없거나 오류 시 시뮬레이션으로 대체
-        random.seed(42)
-        df["혼잡도"] = [random.choice(["여유", "여유", "보통", "붐빔"]) for _ in range(len(df))]
-
-    df["혼잡도_점수"] = df["혼잡도"].map({"여유": 1, "보통": 2, "붐빔": 3})
-    df["주차가능"] = df["주차안내"].notna() & (df["주차안내"].str.strip() != "")
-    return df
 
 df = load_data()
 
