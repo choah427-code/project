@@ -116,7 +116,7 @@ def load_data():
                 return congestion_dict[api_name]
         return "보통"
 
-    df["혼잡도"] = df["장소명"].apply(lambda x: match_congestion(x, congestion_dict))
+    df["혼잡도"] = df["장소명"].apply(lambda x: match_congestion(x, congestion_dict).strip())
     df["혼잡도_점수"] = df["혼잡도"].map({"여유": 1, "보통": 2, "붐빔": 3})
     df["주차가능"] = df["주차안내"].notna() & (df["주차안내"].str.strip() != "")
     return df
