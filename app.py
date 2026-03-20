@@ -75,28 +75,41 @@ st.markdown("""
 # ─────────────────────────────────────────
 @st.cache_data(ttl=300)
 def get_realtime_congestion(api_key: str) -> dict:
+
     AREA_NAMES = [
-        "강남 MICE 관광특구", "동대문 관광특구", "명동 관광특구", "이태원 관광특구",
-        "잠실 관광특구", "종로·청계 관광특구", "홍대 관광특구", "경복궁·서촌마을",
-        "광화문·덕수궁", "창덕궁·종묘", "가산디지털단지역", "강남역", "건대입구역",
-        "고속터미널역", "교대역", "구로디지털단지역", "서울역", "신촌·이대역",
-        "여의도", "영등포 타임스퀘어", "왕십리역", "용산역", "혜화역",
-        "DMC(디지털미디어시티)", "북촌한옥마을", "인사동·익선동", "낙산공원·이화마을",
-        "남산공원", "서울숲공원", "월드컵공원", "올림픽공원", "뚝섬한강공원",
-        "반포한강공원", "여의도한강공원", "이촌한강공원", "한강(잠실)",
+        "강남 MICE 관광특구","동대문 관광특구","명동 관광특구","이태원 관광특구",
+        "잠실 관광특구","종로·청계 관광특구","홍대 관광특구","경복궁·서촌마을",
+        "광화문·덕수궁","창덕궁·종묘","가산디지털단지역","강남역","건대입구역",
+        "고속터미널역","교대역","구로디지털단지역","서울역","신촌·이대역",
+        "여의도","영등포 타임스퀘어","왕십리역","용산역","혜화역",
+        "DMC(디지털미디어시티)","북촌한옥마을","인사동·익선동","낙산공원·이화마을",
+        "남산공원","서울숲공원","월드컵공원","올림픽공원","뚝섬한강공원",
+        "반포한강공원","여의도한강공원","이촌한강공원","한강(잠실)"
     ]
+
     congestion_dict = {}
+
     for area in AREA_NAMES:
         try:
             url = f"http://openapi.seoul.go.kr:8088/{api_key}/json/citydata_ppltn/1/1/{area}"
             response = requests.get(url, timeout=5)
             data = response.json()
-            ppltn_data = data.get("SeoulRtd.citydata_ppltn", {}).get("CITYDATA", [{}])[0]
-            level = ppltn_data.get("AREA_CONGEST_LVL", "")
-            level_map = {"여유": "여유", "보통": "보통", "약간 붐빔": "보통", "붐빔": "붐빔"}
+
+            row = data.get("SeoulRtd.citydata_ppltn", {}).get("row", [{}])[0]
+            level = row.get("AREA_CONGEST_LVL", "")
+
+            level_map = {
+                "여유": "여유",
+                "보통": "보통",
+                "약간 붐빔": "붐빔",
+                "붐빔": "붐빔"
+            }
+
             congestion_dict[area] = level_map.get(level, "보통")
-        except:
+
+        except Exception as e:
             congestion_dict[area] = "보통"
+
     return congestion_dict
 
 # ─────────────────────────────────────────
