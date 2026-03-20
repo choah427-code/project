@@ -126,7 +126,7 @@ def get_realtime_congestion(api_key: str) -> dict:
     
     return congestion_dict
 def load_data():
-API_KEY = st.secrets["SEOUL_API_KEY"]
+    API_KEY = st.secrets["SEOUL_API_KEY"]
     congestion_dict = get_realtime_congestion(API_KEY)
 
     def match_congestion(place_name, congestion_dict):
