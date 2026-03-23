@@ -44,32 +44,13 @@ st.markdown("""
   }
   .metric-num { font-size: 2rem; font-weight: 700; color: #a78bfa; }
   .metric-label { font-size: 0.85rem; color: #94a3b8; margin-top: 0.2rem; }
-  .spot-card {
-    background: #1a1a3e;
-    border: 1px solid #3a3a6a;
-    border-radius: 12px;
-    padding: 1rem 1.2rem;
-    margin-bottom: 0.8rem;
-  }
-  .spot-title { color: #c4b5fd; font-weight: 600; font-size: 1.05rem; }
-  .spot-tag {
-    display: inline-block;
-    background: #2d2b55;
-    color: #a78bfa;
-    border-radius: 999px;
-    padding: 2px 10px;
-    font-size: 0.75rem;
-    margin-right: 4px;
-  }
-  .spot-tag.free { background: #1e3a2f; color: #4ade80; }
-  .spot-tag.paid { background: #3a1e1e; color: #f87171; }
   label { color: #c4b5fd !important; }
   .stMultiSelect [data-baseweb="tag"] { background-color: #3a3a6a; }
 </style>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────
-# 실시간 혼잡도 API
+# 실시간 혼잡도 API  ← 들여쓰기 완전 수정
 # ─────────────────────────────────────────
 @st.cache_data(ttl=300)
 def get_realtime_congestion(api_key: str) -> dict:
@@ -91,13 +72,13 @@ def get_realtime_congestion(api_key: str) -> dict:
             url = f"http://openapi.seoul.go.kr:8088/{api_key}/json/citydata/1/1/{encoded_area}"
             response = requests.get(url, timeout=10)
             data = response.json()
-ppltn_list = data.get("CITYDATA", {}).get("LIVE_PPLTN_STTS", [])
-if not ppltn_list:
-    congestion_dict[area] = "보통"
-    continue
-
-level = ppltn_list[0].get("AREA_CONGEST_LVL", "").strip()
-congestion_dict[area] = level_map.get(level, "보통")
+            # ✅ 수정된 파싱 경로
+            ppltn_list = data.get("CITYDATA", {}).get("LIVE_PPLTN_STTS", [])
+            if not ppltn_list:
+                congestion_dict[area] = "보통"
+                continue
+            level = ppltn_list[0].get("AREA_CONGEST_LVL", "").strip()
+            congestion_dict[area] = level_map.get(level, "보통")
         except Exception:
             congestion_dict[area] = "보통"
     return congestion_dict
@@ -143,30 +124,29 @@ def load_data():
     df["주차가능"] = df["주차안내"].notna() & (df["주차안내"].str.strip() != "")
     return df
 
-# ─────────────────────────────────────────
-# ✅ df 호출은 딱 한 번만
-# ─────────────────────────────────────────
 df = load_data()
 
 # ─────────────────────────────────────────
-# 🔧 임시 디버그 — API 응답 확인용 (확인 후 삭제)
+# 🔧 임시 디버그 (확인 후 삭제)
 # ─────────────────────────────────────────
-with st.expander("🔧 API 디버그 (확인 후 삭제 예정)", expanded=True):
+with st.expander("🔧 API 디버그 (확인 후 삭제 예정)", expanded=False):
     try:
         API_KEY = st.secrets["SEOUL_API_KEY"]
         st.write("✅ API 키 로드 성공:", API_KEY[:6] + "****")
-
         test_area = "남산공원"
         encoded = urllib.parse.quote(test_area)
         url = f"http://openapi.seoul.go.kr:8088/{API_KEY}/json/citydata/1/1/{encoded}"
-        st.write("📡 요청 URL:", url.replace(API_KEY, "****"))
-
         r = requests.get(url, timeout=10)
         st.write("📶 상태코드:", r.status_code)
-        st.json(r.json())
-
+        data = r.json()
+        ppltn_list = data.get("CITYDATA", {}).get("LIVE_PPLTN_STTS", [])
+        if ppltn_list:
+            st.success(f"✅ 파싱 성공! 혼잡도: {ppltn_list[0].get('AREA_CONGEST_LVL', '없음')}")
+        else:
+            st.warning("⚠️ LIVE_PPLTN_STTS 키를 찾을 수 없음")
+            st.write("응답 최상위 키:", list(data.keys()))
     except Exception as e:
-        st.error(f"❌ 오류 발생: {e}")
+        st.error(f"❌ 오류: {e}")
 
 # ─────────────────────────────────────────
 # 헤더
@@ -237,12 +217,10 @@ with col_map:
     color_map = {"여유": "green", "보통": "orange", "붐빔": "red"}
     icon_map  = {"여유": "star", "보통": "info-sign", "붐빔": "warning-sign"}
     m = folium.Map(location=[37.55, 126.99], zoom_start=12, tiles="CartoDB dark_matter")
-
     try:
         UNSPLASH_KEY = st.secrets["UNSPLASH_ACCESS_KEY"]
     except Exception:
         UNSPLASH_KEY = ""
-
     for _, row in filtered.iterrows():
         try:
             lat, lon = float(row["위도"]), float(row["경도"])
